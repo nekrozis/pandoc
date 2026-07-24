@@ -1,0 +1,40 @@
+name: Build WASM
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: cachix/install-nix-action@v31
+      with:
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+
+    - uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-wasm-${{ hashFiles('flake.lock', 'flake.nix', 'pandoc.cabal', 'pandoc-cli/pandoc-cli.cabal', 'cabal.project') }}
+        restore-prefixes-first-match: nix-wasm-
+
+    - name: Cache cabal store
+      uses: actions/cache@v5
+      with:
+        path: ~/.ghc-wasm/.cabal/store
+        key: cabal-store-wasm-${{ hashFiles('pandoc.cabal', 'pandoc-cli/pandoc-cli.cabal', 'cabal.project', 'stack.yaml') }}
+        restore-keys: cabal-store-wasm-
+
+    - name: Build pandoc.wasm
+      run: |
+        nix develop --command bash -c "make pandoc.wasm"
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: pandoc-wasm
+        path: pandoc.wasm
